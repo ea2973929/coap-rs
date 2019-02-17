@@ -10,6 +10,10 @@ authors = ["Yang Zhang <wuyingfengsui@gmail.com>"]
 keywords = ["CoAP"]
 edition = "2018"
 
+[[bench]]
+name = "client"
+harness = false
+
 [dependencies]
 bincode = "1.1.1"
 serde = { version= "1.0.88", features= [ "derive" ] }
@@ -26,3 +30,4 @@ regex = "1.0.2"
 
 [dev-dependencies]
 quickcheck = "0.2.27"
+bencher = "0.1.5"

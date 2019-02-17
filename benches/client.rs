@@ -1,12 +1,8 @@
-#![feature(test)]
-
-extern crate test;
 extern crate coap;
 
-use test::Bencher;
 use coap::{CoAPClient, CoAPRequest, IsMessage, MessageType, CoAPOption};
+use bencher::*;
 
-#[bench]
 fn bench_client_request(b: &mut Bencher) {
 	let addr = "127.0.0.1:5683";
 	let endpoint = "test";
@@ -25,3 +21,6 @@ fn bench_client_request(b: &mut Bencher) {
 		client.receive().unwrap();
 	});
 }
+
+benchmark_group!(benches, bench_client_request);
+benchmark_main!(benches);
