@@ -100,44 +100,41 @@ impl<H: CoAPHandler + 'static, N: Fn() + Send + 'static> UdpHandler<H, N> {
     }
 
     fn request_handler(&mut self, event_loop: &mut EventLoop<UdpHandler<H, N>>) {
-        match self.requset_recv() {
-            Some(rqst) => {
-                let filtered = !self.observer.request_handler(&rqst);
-                if filtered {
-                    return;
-                }
+        if let Some(rqst) = self.requset_recv() {
+            let filtered = !self.observer.request_handler(&rqst);
+            if filtered {
+                return;
+            }
 
-                let src = rqst.source.unwrap();
-                let coap_handler = self.coap_handler;
-                let response_q = self.tx_sender.clone();
-                let event_sender = event_loop.channel();
+            let src = rqst.source.unwrap();
+            let coap_handler = self.coap_handler;
+            let response_q = self.tx_sender.clone();
+            let event_sender = event_loop.channel();
 
-                self.worker_pool.execute(move || {
-                    match coap_handler.handle(rqst) {
-                        Some(response) => {
-                            debug!("Response: {:?}", response);
+            self.worker_pool.execute(move || {
+                match coap_handler.handle(rqst) {
+                    Some(response) => {
+                        debug!("Response: {:?}", response);
 
-                            response_q.send(QueuedMessage {
-                                address: src,
-                                message: response.message,
-                            }).unwrap();
-                            match event_sender.send(EventLoopNotify {
-                                notify_type: EventLoopNotifyType::NewResponse,
-                                request: None
-                            }) {
-                                Ok(()) => {}
-                                Err(error) => {
-                                    warn!("Notify NewResponse failed, {:?}", error);
-                                }
+                        response_q.send(QueuedMessage {
+                            address: src,
+                            message: response.message,
+                        }).unwrap();
+                        match event_sender.send(EventLoopNotify {
+                            notify_type: EventLoopNotifyType::NewResponse,
+                            request: None
+                        }) {
+                            Ok(()) => {}
+                            Err(error) => {
+                                warn!("Notify NewResponse failed, {:?}", error);
                             }
                         }
-                        None => {
-                            debug!("No response");
-                        }
                     }
-                });
-            }
-            None => {}
+                    None => {
+                        debug!("No response");
+                    }
+                }
+            });
         }
     }
 
@@ -216,13 +213,11 @@ impl<H: CoAPHandler + 'static, N: Fn() + Send + 'static> Handler for UdpHandler<
     fn ready(&mut self, event_loop: &mut EventLoop<UdpHandler<H, N>>, _: Token, events: EventSet) {
         if events.is_writable() {
             // handle the response
-            match self.response_handler() {
-                true => {
-                    event_loop.reregister(&self.socket, Token(0), EventSet::readable(), PollOpt::level()).unwrap();
-                }
-                false => {
-                    event_loop.reregister(&self.socket, Token(0), EventSet::writable(), PollOpt::edge()).unwrap();
-                }
+            if self.response_handler() {
+                event_loop.reregister(&self.socket, Token(0), EventSet::readable(), PollOpt::level()).unwrap();
+            }
+            else {
+                event_loop.reregister(&self.socket, Token(0), EventSet::writable(), PollOpt::edge()).unwrap();
             }
         } else if events.is_readable() {
             // handle the request
@@ -289,7 +284,7 @@ impl CoAPServer {
         let socket;
 
         // Early return error checking
-        if let Some(_) = self.event_sender {
+        if self.event_sender.is_some() {
             error!("Handler already running!");
             return Err(CoAPServerError::AnotherHandlerIsRunning);
         }
@@ -345,15 +340,14 @@ impl CoAPServer {
     /// Stop the server.
     pub fn stop(&mut self) {
         let event_sender = self.event_sender.take();
-        match event_sender {
-            Some(ref sender) => {
-                sender.send(EventLoopNotify {
-                                notify_type: EventLoopNotifyType::Shutdown,
-                                request: None
-                            }).unwrap();
-                self.event_thread.take().map(|g| g.join().unwrap());
+        if let Some(ref sender) = event_sender {
+            sender.send(EventLoopNotify {
+                            notify_type: EventLoopNotifyType::Shutdown,
+                            request: None
+                        }).unwrap();
+            if let Some(g) = self.event_thread.take() {
+                    g.join().unwrap()
             }
-            _ => {}
         }
     }
 

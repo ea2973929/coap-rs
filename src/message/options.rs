@@ -57,7 +57,7 @@ pub enum CoAPOption {
     NoResponse,
 }
 
-#[derive(PartialEq, Eq, Debug, FromPrimitive)]
+#[derive(PartialEq,Eq,Debug,FromPrimitive)]
 pub enum ObserveOption {
     Register = 0,
     Deregister = 1,

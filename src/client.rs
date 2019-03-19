@@ -136,7 +136,7 @@ impl CoAPClient {
             packet.set_payload(payload);
 
             self.send(&packet)?;
-            self.set_receive_timeout(Some(self.configuration.timeout)).expect(format!("Failed to set timeout: {:?}", self.configuration.timeout).as_str());
+            self.set_receive_timeout(Some(self.configuration.timeout)).unwrap_or_else(|_| panic!("Failed to set timeout: {:?}", self.configuration.timeout));
 
             self.receive()
         }
@@ -166,7 +166,7 @@ impl CoAPClient {
             Ok(good_socket) => socket = good_socket,
             Err(_) => return Err(Error::new(ErrorKind::Other, "network error")),
         }
-        let peer_addr = self.peer_addr.clone();
+        let peer_addr = self.peer_addr;
         let (observe_sender, observe_receiver) = mpsc::channel();
         let observe_path = String::from(resource_path);
 
@@ -221,13 +221,13 @@ impl CoAPClient {
 
     /// Stop observing
     pub fn unobserve(&mut self) {
-        match self.observe_sender.take() {
-            Some(ref sender) => {
-                sender.send(ObserveMessage::Terminate).unwrap();
+        if let Some(ref sender) = self.observe_sender.take() {
+            sender.send(ObserveMessage::Terminate).unwrap();
 
-                self.observe_thread.take().map(|g| g.join().unwrap());
+            if let Some(g) = self.observe_thread.take() {
+                g.join().unwrap();
+        
             }
-            _ => {}
         }
     }
 

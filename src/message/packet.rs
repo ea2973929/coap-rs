@@ -319,10 +319,10 @@ impl Packet {
                     use std::ptr;
                     let buf_len = options_bytes.len();
                     ptr::copy(header.as_ptr(),
-                              options_bytes.as_mut_ptr().offset(buf_len as isize),
+                              options_bytes.as_mut_ptr().add(buf_len),
                               header.len());
                     ptr::copy(value.as_ptr(),
-                              options_bytes.as_mut_ptr().offset((buf_len + header.len()) as isize),
+                              options_bytes.as_mut_ptr().add(buf_len + header.len()),
                               value.len());
                     options_bytes.set_len(buf_len + header.len() + value.len());
                 }
@@ -330,7 +330,7 @@ impl Packet {
         }
 
         let mut buf_length = 4 + self.payload.len() + self.token.len();
-        if self.header.code != header::MessageClass::Empty && self.payload.len() != 0 {
+        if self.header.code != header::MessageClass::Empty && !self.payload.is_empty() {
             buf_length += 1;
         }
         buf_length += options_bytes.len();
@@ -351,22 +351,22 @@ impl Packet {
                     use std::ptr;
                     let buf_len = buf.len();
                     ptr::copy(self.token.as_ptr(),
-                              buf.as_mut_ptr().offset(buf_len as isize),
+                              buf.as_mut_ptr().add(buf_len),
                               self.token.len());
                     ptr::copy(options_bytes.as_ptr(),
-                              buf.as_mut_ptr().offset((buf_len + self.token.len()) as isize),
+                              buf.as_mut_ptr().add(buf_len + self.token.len()),
                               options_bytes.len());
                     buf.set_len(buf_len + self.token.len() + options_bytes.len());
                 }
 
-                if self.header.code != header::MessageClass::Empty && self.payload.len() != 0 {
+                if self.header.code != header::MessageClass::Empty && !self.payload.is_empty() {
                     buf.push(0xFF);
                     buf.reserve(self.payload.len());
                     unsafe {
                         use std::ptr;
                         let buf_len = buf.len();
                         ptr::copy(self.payload.as_ptr(),
-                                  buf.as_mut_ptr().offset(buf.len() as isize),
+                                  buf.as_mut_ptr().add(buf.len()),
                                   self.payload.len());
                         buf.set_len(buf_len + self.payload.len());
                     }

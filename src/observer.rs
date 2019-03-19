@@ -127,8 +127,7 @@ impl<N: Fn() + Send + 'static> Observer<N> {
 
         self.record_register_resource(&register_address, &resource_path, &request.get_token());
 
-        let resource = self.resources.get(&resource_path).unwrap();
-
+        let resource = &self.resources[&resource_path];
         if let Some(ref response) = request.response {
             let mut response2 = response.clone();
             response2.set_payload(resource.payload.clone());
@@ -148,17 +147,17 @@ impl<N: Fn() + Send + 'static> Observer<N> {
 
     fn resource_changed(&mut self, request: &CoAPRequest) {
         let resource_path = request.get_path();
-        let ref resource_payload = request.message.payload;
+        let resource_payload = &request.message.payload;
 
         debug!("resource_changed {} {:?}", resource_path, resource_payload);
 
         let register_resource_keys: Vec<String>;
         {
-            let resource = self.record_resource(&resource_path, &resource_payload);
+            let resource = self.record_resource(&resource_path, resource_payload);
             register_resource_keys = resource
                 .register_resources
                 .iter()
-                .map(|k| k.clone())
+                .cloned()
                 .collect();
         }
 
@@ -170,10 +169,10 @@ impl<N: Fn() + Send + 'static> Observer<N> {
     }
 
     fn acknowledge(&mut self, request: &CoAPRequest) {
-        self.remove_unacknowledge_message(&request.get_message_id(), &request.get_token());
+        self.remove_unacknowledge_message(request.get_message_id(), &request.get_token());
     }
 
-    fn record_register_resource(&mut self, address: &SocketAddr, path: &String, token: &Vec<u8>) {
+    fn record_register_resource(&mut self, address: &SocketAddr, path: &str, token: &[u8]) {
         let resource = self.resources.get_mut(path).unwrap();
         let register_key = Self::format_register(&address);
         let register_resource_key = Self::format_register_resource(&address, path);
@@ -182,8 +181,8 @@ impl<N: Fn() + Send + 'static> Observer<N> {
             .entry(register_resource_key.clone())
             .or_insert(RegisterResourceItem {
                 register: register_key.clone(),
-                resource: path.clone(),
-                token: token.clone(),
+                resource: path.to_string(),
+                token: token.to_vec(),
                 unacknowledge_message: None,
             });
         resource
@@ -210,13 +209,13 @@ impl<N: Fn() + Send + 'static> Observer<N> {
     fn remove_register_resource(
         &mut self,
         address: &SocketAddr,
-        path: &String,
-        token: &Vec<u8>,
+        path: &str,
+        token: &[u8],
     ) -> bool {
         let register_resource_key = Self::format_register_resource(&address, path);
 
         if let Some(register_resource) = self.register_resources.get(&register_resource_key) {
-            if register_resource.token != *token {
+            if register_resource.token != token {
                 return false;
             }
 
@@ -242,7 +241,7 @@ impl<N: Fn() + Send + 'static> Observer<N> {
                     register.register_resources.remove(&register_resource_key),
                     true
                 );
-                remove_register = register.register_resources.len() == 0;
+                remove_register = register.register_resources.is_empty();
             }
 
             if remove_register {
@@ -254,25 +253,25 @@ impl<N: Fn() + Send + 'static> Observer<N> {
         return true;
     }
 
-    fn record_resource(&mut self, path: &String, payload: &Vec<u8>) -> &ResourceItem {
-        match self.resources.entry(path.clone()) {
+    fn record_resource(&mut self, path: &str, payload: &[u8]) -> &ResourceItem {
+        match self.resources.entry(path.to_string()) {
             Entry::Occupied(resource) => {
                 let mut r = resource.into_mut();
                 r.sequence += 1;
-                r.payload = payload.clone();
+                r.payload = payload.to_owned();
                 return r;
             }
             Entry::Vacant(v) => {
-                return v.insert(ResourceItem {
-                    payload: payload.clone(),
+                v.insert(ResourceItem {
+                    payload: payload.to_owned(),
                     register_resources: HashSet::new(),
                     sequence: 0,
-                });
+                })
             }
         }
     }
 
-    fn record_unacknowledge_message(&mut self, register_resource_key: &String) {
+    fn record_unacknowledge_message(&mut self, register_resource_key: &str) {
         let message_id = self.current_message_id;
 
         let register_resource = self.register_resources
@@ -286,21 +285,21 @@ impl<N: Fn() + Send + 'static> Observer<N> {
         self.unacknowledge_messages.insert(
             message_id,
             UnacknowledgeMessageItem {
-                register_resource: register_resource_key.clone(),
+                register_resource: register_resource_key.to_string(),
                 try_times: 1,
             },
         );
     }
 
-    fn try_unacknowledge_message(&mut self, register_resource_key: &String) -> bool {
+    fn try_unacknowledge_message(&mut self, register_resource_key: &str) -> bool {
         let register_resource = self.register_resources
             .get_mut(register_resource_key)
             .unwrap();
-        let ref message_id = register_resource.unacknowledge_message.unwrap();
+        let message_id = register_resource.unacknowledge_message.unwrap();
 
         let try_again;
         {
-            let unacknowledge_message = self.unacknowledge_messages.get_mut(message_id).unwrap();
+            let unacknowledge_message = self.unacknowledge_messages.get_mut(&message_id).unwrap();
             if unacknowledge_message.try_times > DEFAULT_UNACKNOWLEDGE_MESSAGE_TRY_TIMES {
                 try_again = false;
             } else {
@@ -316,40 +315,40 @@ impl<N: Fn() + Send + 'static> Observer<N> {
             );
 
             register_resource.unacknowledge_message = None;
-            self.unacknowledge_messages.remove(message_id);
+            self.unacknowledge_messages.remove(&message_id);
         }
 
-        return try_again;
+        try_again
     }
 
-    fn remove_unacknowledge_message(&mut self, message_id: &u16, token: &Vec<u8>) {
-        if let Some(message) = self.unacknowledge_messages.get_mut(message_id) {
+    fn remove_unacknowledge_message(&mut self, message_id: u16, token: &[u8]) {
+        if let Some(message) = self.unacknowledge_messages.get_mut(&message_id) {
             let register_resource = self.register_resources
                 .get_mut(&message.register_resource)
                 .unwrap();
-            if register_resource.token != *token {
+            if register_resource.token != token {
                 return;
             }
 
             register_resource.unacknowledge_message = None;
         }
 
-        self.unacknowledge_messages.remove(message_id);
+        self.unacknowledge_messages.remove(&message_id);
     }
 
-    fn notify_register_with_newest_resource(&self, register_resource_key: &String) {
+    fn notify_register_with_newest_resource(&self, register_resource_key: &str) {
         let message_id = self.current_message_id;
 
         debug!("notify {} {}", register_resource_key, message_id);
 
-        let ref mut message = Packet::new();
+        let mut message = Packet::new();
         message.header.set_type(MessageType::Confirmable);
         message.header.code = MessageClass::Response(ResponseType::Content);
 
         let address: SocketAddr;
         {
-            let register_resource = self.register_resources.get(register_resource_key).unwrap();
-            let resource = self.resources.get(&register_resource.resource).unwrap();
+            let register_resource = &self.register_resources[register_resource_key];
+            let resource = &self.resources[&register_resource.resource];
 
             let mut sequence_bin =
                 bincode::config().big_endian().serialize(&resource.sequence).unwrap();
@@ -380,14 +379,14 @@ impl<N: Fn() + Send + 'static> Observer<N> {
 
     fn gen_message_id(&mut self) -> u16 {
         self.current_message_id += 1;
-        return self.current_message_id;
+        self.current_message_id
     }
 
     fn format_register(address: &SocketAddr) -> String {
         format!("{}", address)
     }
 
-    fn format_register_resource(address: &SocketAddr, path: &String) -> String {
+    fn format_register_resource(address: &SocketAddr, path: &str) -> String {
         format!("{}${}", address, path)
     }
 }
