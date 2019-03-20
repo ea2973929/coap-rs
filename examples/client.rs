@@ -1,8 +1,13 @@
 extern crate coap;
 
 use std::io;
+use std::io::prelude::*;
 use std::io::ErrorKind;
-use coap::{CoAPClient, CoAPRequest, IsMessage, Method};
+use coap::{CoAPClient, CoAPRequest, IsMessage, Method, CoAPOption};
+use coap::message::options::{ BlockOption, BlockSize };
+use coap::block_transfer::send;
+use url::Url;
+use std::fs::File;
 
 fn main() {
     println!("Request by GET:");
@@ -13,6 +18,9 @@ fn main() {
 
     println!("PUT data:");
     example_put();
+
+    println!("PUT with block option:");
+    example_put_block_transfer();
 
     println!("Observing:");
     example_observe();
@@ -91,6 +99,20 @@ fn example_put() {
                 _ => println!("Request error: {:?}", e),
             }
         }
+    }
+}
+
+fn example_put_block_transfer() {
+    let addr = "127.0.0.1:5683";
+
+    let client = CoAPClient::new(addr).unwrap();
+
+    let mut file = File::open("./myFile.txt").expect("Could not open data file");
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).expect("Could not read data from file");
+    match client.put("/test", data) {
+        Ok(_) => println!("Sent block transfer"),
+        Err(_) => println!("Failed to send block transfer")
     }
 }
 

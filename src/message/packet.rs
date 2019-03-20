@@ -10,11 +10,12 @@ use super::options::{CoAPOption};
 
 macro_rules! u8_to_unsigned_be {
     ($src:ident, $start:expr, $end:expr, $t:ty) => ({
-        (0 .. $end - $start + 1).rev().fold(0, |acc, i| acc | $src[$start+i] as $t << i * 8)
+        (0 ..=$end - $start).rev().fold(0, |acc, i| acc | u16::from($src[$start+i]) as $t << i * 8)
     })
 }
 
-#[derive(PartialEq, Eq, Debug, FromPrimitive)]
+#[derive(FromPrimitive, PartialEq, Eq, Debug)]
+#[allow(clippy::useless_attribute)] 
 pub enum ContentFormat {
     TextPlain = 0,
     ApplicationLinkFormat = 40,
@@ -56,8 +57,8 @@ pub struct Packet {
     pub payload: Vec<u8>,
 }
 
-impl Packet {
-    pub fn new() -> Packet {
+impl Default for Packet {
+    fn default() -> Self {
         Packet {
             header: header::Header::new(),
             token: Vec::new(),
@@ -65,14 +66,16 @@ impl Packet {
             payload: Vec::new(),
         }
     }
+}
 
+impl Packet {
     pub fn set_token(&mut self, token: Vec<u8>) {
         self.header.set_token_length(token.len() as u8);
         self.token = token;
     }
 
     pub fn get_token(&self) -> &Vec<u8> {
-        return &self.token;
+        &self.token
     }
 
     pub fn set_option(&mut self, tp: CoAPOption, value: LinkedList<Vec<u8>>) {
@@ -95,14 +98,10 @@ impl Packet {
 
     pub fn add_option(&mut self, tp: CoAPOption, value: Vec<u8>) {
         let num = Self::get_option_number(tp);
-        match self.options.get_mut(&num) {
-            Some(list) => {
-                list.push_back(value);
-                return;
-            }
-            None => (),
-        };
-
+        if let Some(list) = self.options.get_mut(&num) {
+            list.push_back(value);
+            return;
+        }
         let mut list = LinkedList::new();
         list.push_back(value);
         self.options.insert(num, list);
@@ -123,8 +122,8 @@ impl Packet {
     pub fn get_content_format(&self) -> Option<ContentFormat> {
         if let Some(list) = self.get_option(CoAPOption::ContentFormat) {
             if let Some(vector) = list.front() {
-                let msb = vector[0] as u16;
-                let lsb = vector[1] as u16;
+                let msb = u16::from(vector[0]);
+                let lsb = u16::from(vector[1]);
                 let number = (msb << 8) + lsb;
 
                 return ContentFormat::from_u16(number);
@@ -241,29 +240,22 @@ impl Packet {
                     }
                     let options_value = buf[idx..end].to_vec();
 
-                    if options.contains_key(&options_number) {
-                        let options_list = options.get_mut(&options_number).unwrap();
-                        options_list.push_back(options_value);
-                    } else {
-                        let mut list = LinkedList::new();
-                        list.push_back(options_value);
-                        options.insert(options_number, list);
-                    }
-
+                    options.entry(options_number).or_insert_with(LinkedList::new).push_back(options_value);
                     idx += length;
                 }
 
-                let mut payload = Vec::new();
-                if idx < buf.len() {
-                    payload = buf[(idx + 1)..buf.len()].to_vec();
+                let payload = if idx < buf.len() {
+                    buf[(idx + 1)..buf.len()].to_vec()
                 }
-
+                else {
+                    Vec::new()
+                };
 
                 Ok(Packet {
-                    header: header,
-                    token: token,
-                    options: options,
-                    payload: payload,
+                    header,
+                    token,
+                    options,
+                    payload,
                 })
             }
             Err(_) => Err(ParseError::InvalidHeader),
@@ -463,7 +455,7 @@ mod test {
 
     #[test]
     fn test_encode_packet_with_options() {
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
         packet.header.set_version(1);
         packet.header.set_type(header::MessageType::Confirmable);
         packet.header.code = header::MessageClass::Request(header::RequestType::Get);
@@ -479,7 +471,7 @@ mod test {
 
     #[test]
     fn test_encode_packet_with_payload() {
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
         packet.header.set_version(1);
         packet.header.set_type(header::MessageType::Acknowledgement);
         packet.header.code = header::MessageClass::Response(header::ResponseType::Content);
@@ -493,14 +485,14 @@ mod test {
 
     #[test]
     fn test_encode_decode_content_format() {
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
         packet.set_content_format(ContentFormat::ApplicationJSON);
         assert_eq!(ContentFormat::ApplicationJSON, packet.get_content_format().unwrap())
     }
 
     #[test]
     fn test_decode_empty_content_format() {
-        let packet = Packet::new();
+        let packet = Packet::default();
         assert!(packet.get_content_format().is_none());
     }
 

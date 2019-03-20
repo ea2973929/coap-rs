@@ -84,25 +84,31 @@ pub enum MessageType {
     Invalid,
 }
 
+impl Default for Header {
+    fn default() -> Self {
+        Header::from_raw(&HeaderRaw::default())
+    }
+}
+
 impl Header {
     pub fn new() -> Header {
-        return Header::from_raw(&HeaderRaw::default());
+        Header::default()
     }
 
     pub fn from_raw(raw: &HeaderRaw) -> Header {
-        return Header {
+        Header {
             ver_type_tkl: raw.ver_type_tkl,
-            code: code_to_class(&raw.code),
+            code: code_to_class(raw.code),
             message_id: raw.message_id,
-        };
+        }
     }
 
     pub fn to_raw(&self) -> HeaderRaw {
-        return HeaderRaw {
+        HeaderRaw {
             ver_type_tkl: self.ver_type_tkl,
             code: class_to_code(&self.code),
             message_id: self.message_id,
-        };
+        }
     }
 
     #[inline]
@@ -113,7 +119,7 @@ impl Header {
 
     #[inline]
     pub fn get_version(&self) -> u8 {
-        return self.ver_type_tkl >> 6;
+        self.ver_type_tkl >> 6
     }
 
     #[inline]
@@ -152,7 +158,7 @@ impl Header {
 
     #[inline]
     pub fn get_token_length(&self) -> u8 {
-        return 0x0F & self.ver_type_tkl;
+        0x0F & self.ver_type_tkl
     }
 
     pub fn set_code(&mut self, code: &str) {
@@ -164,7 +170,7 @@ impl Header {
         assert_eq!(0xF8 & class_code, 0);
         assert_eq!(0xE0 & detail_code, 0);
 
-        self.code = code_to_class(&(class_code << 5 | detail_code));
+        self.code = code_to_class(class_code << 5 | detail_code);
     }
 
     pub fn get_code(&self) -> String {
@@ -178,12 +184,12 @@ impl Header {
 
     #[inline]
     pub fn get_message_id(&self) -> u16 {
-        return self.message_id;
+        self.message_id
     }
 }
 
 pub fn class_to_code(class: &MessageClass) -> u8 {
-    return match *class {
+    match class {
         MessageClass::Empty => 0x00,
 
         MessageClass::Request(RequestType::Get) => 0x01,
@@ -218,11 +224,11 @@ pub fn class_to_code(class: &MessageClass) -> u8 {
         MessageClass::Response(ResponseType::ProxyingNotSupported) => 0x95,
 
         _ => 0xFF,
-    } as u8;
+    }
 }
 
-pub fn code_to_class(code: &u8) -> MessageClass {
-    match *code {
+pub fn code_to_class(code: u8) -> MessageClass {
+    match code {
         0x00 => MessageClass::Empty,
 
         0x01 => MessageClass::Request(RequestType::Get),
@@ -259,15 +265,15 @@ pub fn code_to_class(code: &u8) -> MessageClass {
     }
 }
 
-pub fn code_to_str(code: &u8) -> String {
+pub fn code_to_str(code: u8) -> String {
     let class_code = (0xE0 & code) >> 5;
     let detail_code = 0x1F & code;
 
-    return format!("{}.{:02}", class_code, detail_code);
+    format!("{}.{:02}", class_code, detail_code)
 }
 
 pub fn class_to_str(class: &MessageClass) -> String {
-    return code_to_str(&class_to_code(class));
+    code_to_str(class_to_code(class))
 }
 
 #[cfg(test)]
@@ -277,8 +283,8 @@ mod test {
     #[test]
     fn test_header_codes() {
         for code in 0..255 {
-            let class = code_to_class(&code);
-            let code_str = code_to_str(&code);
+            let class = code_to_class(code);
+            let code_str = code_to_str(code);
             let class_str = class_to_str(&class);
 
             // Reserved class could technically be many codes

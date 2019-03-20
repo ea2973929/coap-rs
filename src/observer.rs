@@ -57,8 +57,8 @@ impl<N: Fn() + Send + 'static> Observer<N> {
             resources: HashMap::new(),
             register_resources: HashMap::new(),
             unacknowledge_messages: HashMap::new(),
-            tx_sender: tx_sender,
-            response_notify: response_notify,
+            tx_sender,
+            response_notify,
             current_message_id: 0,
         }
     }
@@ -73,19 +73,19 @@ impl<N: Fn() + Send + 'static> Observer<N> {
             (&Method::Get, Some(observe_option)) => match observe_option[0] {
                 x if x == ObserveOption::Register as u8 => {
                     self.register(request);
-                    return false;
+                    false
                 }
                 x if x == ObserveOption::Deregister as u8 => {
                     self.deregister(request);
-                    return true;
+                    true
                 }
-                _ => return true,
+                _ => true
             },
             (&Method::Put, _) => {
                 self.resource_changed(request);
-                return true;
-            }
-            _ => return true,
+                true
+            },
+            _ => true,
         }
     }
 
@@ -250,7 +250,7 @@ impl<N: Fn() + Send + 'static> Observer<N> {
         }
 
         self.register_resources.remove(&register_resource_key);
-        return true;
+        true
     }
 
     fn record_resource(&mut self, path: &str, payload: &[u8]) -> &ResourceItem {
@@ -259,7 +259,7 @@ impl<N: Fn() + Send + 'static> Observer<N> {
                 let mut r = resource.into_mut();
                 r.sequence += 1;
                 r.payload = payload.to_owned();
-                return r;
+                r
             }
             Entry::Vacant(v) => {
                 v.insert(ResourceItem {
@@ -341,7 +341,7 @@ impl<N: Fn() + Send + 'static> Observer<N> {
 
         debug!("notify {} {}", register_resource_key, message_id);
 
-        let mut message = Packet::new();
+        let mut message = Packet::default();
         message.header.set_type(MessageType::Confirmable);
         message.header.code = MessageClass::Response(ResponseType::Content);
 

@@ -11,7 +11,7 @@ pub struct CoAPResponse {
 
 impl CoAPResponse {
     pub fn new(request: &Packet) -> Option<CoAPResponse> {
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
 
         packet.header.set_version(1);
         let response_type = match request.header.get_type() {
@@ -68,7 +68,7 @@ mod test {
     #[test]
     fn test_new_response_valid() {
         for mtyp in vec![MessageType::Confirmable, MessageType::NonConfirmable] {
-            let mut packet = Packet::new();
+            let mut packet = Packet::default();
             packet.header.set_type(mtyp);
             let opt_resp = CoAPResponse::new(&packet);
             assert!(opt_resp.is_some());
@@ -80,7 +80,7 @@ mod test {
 
     #[test]
     fn test_new_response_invalid() {
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
         packet.header.set_type(MessageType::Acknowledgement);
         assert!(CoAPResponse::new(&packet).is_none());
     }

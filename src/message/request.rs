@@ -8,7 +8,7 @@ use std::str;
 
 pub use super::header::RequestType as Method;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct CoAPRequest {
     pub message: Packet,
     pub response: Option<CoAPResponse>,
@@ -19,7 +19,7 @@ impl CoAPRequest {
     pub fn new() -> CoAPRequest {
         CoAPRequest {
             response: None,
-            message: Packet::new(),
+            message: Packet::default(),
             source: None,
         }
     }
@@ -28,7 +28,7 @@ impl CoAPRequest {
         CoAPRequest {
             response: CoAPResponse::new(&packet),
             message: packet,
-            source: Some(source.clone()),
+            source: Some(*source),
         }
     }
 
@@ -49,9 +49,9 @@ impl CoAPRequest {
     pub fn set_path(&mut self, path: &str) {
         self.clear_option(CoAPOption::UriPath);
 
-        let segs = path.split("/");
+        let segs = path.split('/');
         for (i, s) in segs.enumerate() {
-            if i == 0 && s.len() == 0 {
+            if i == 0 && s.is_empty() {
                 continue;
             }
 
@@ -103,7 +103,7 @@ mod test {
     #[test]
     fn test_request_create() {
 
-        let mut packet = Packet::new();
+        let mut packet = Packet::default();
         let mut request1 = CoAPRequest::new();
 
         packet.set_token(vec![0x17, 0x38]);

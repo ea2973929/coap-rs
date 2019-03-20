@@ -66,7 +66,7 @@ impl<F> CoAPHandler for F
           F: Sync + Send + Copy
 {
     fn handle(&self, request: CoAPRequest) -> Option<CoAPResponse> {
-        return self(request);
+        self(request)
     }
 }
 
@@ -90,11 +90,11 @@ impl<H: CoAPHandler + 'static, N: Fn() + Send + 'static> UdpHandler<H, N> {
         let response_q = tx_sender.clone();
 
         UdpHandler {
-            socket: socket,
-            tx_sender: tx_sender,
-            rx_recv: rx_recv,
+            socket,
+            tx_sender,
+            rx_recv,
             worker_pool: ThreadPool::new(worker_num),
-            coap_handler: coap_handler,
+            coap_handler,
             observer: Observer::new(response_q, response_notify),
         }
     }
@@ -170,11 +170,11 @@ impl<H: CoAPHandler + 'static, N: Fn() + Send + 'static> UdpHandler<H, N> {
 
                 match Packet::from_bytes(&buf[..nread]) {
                     Ok(packet) => {
-                        return Some(CoAPRequest::from_packet(packet, &src));
-                    }
+                        Some(CoAPRequest::from_packet(packet, &src))
+                    },
                     Err(_) => {
                         error!("Failed to parse request");
-                        return None;
+                        None
                     }
                 }
             }
@@ -190,17 +190,17 @@ impl<H: CoAPHandler + 'static, N: Fn() + Send + 'static> UdpHandler<H, N> {
             Ok(bytes) => {
                 match self.socket.send_to(&bytes[..], &q_res.address) {
                     // Look at https://github.com/carllerche/mio/issues/411 in detail
-                    Ok(None) => return Err(ResponseError::SocketUnwritable),
+                    Ok(None) => Err(ResponseError::SocketUnwritable),
                     Ok(_) => Ok(()),
                     Err(error) => {
                         error!("Failed to send response, {:?}", error);
-                        return Err(ResponseError::SocketError);
+                        Err(ResponseError::SocketError)
                     }
                 }
-            }
+            },
             Err(error) => {
                 error!("Failed to decode response, {:?}", error);
-                return Err(ResponseError::PacketInvalid);
+                Err(ResponseError::PacketInvalid)
             }
         }
     }

@@ -127,7 +127,7 @@ impl CoAPClient {
 
     pub fn put(&self, path: &str, payload: Vec<u8>) -> Result<CoAPResponse> {
         if payload.len() > self.configuration.block_size as usize {
-            return block_transfer::send(path, payload, &self)
+            block_transfer::send(path, payload, &self)
         }
         else {
             let mut packet = CoAPRequest::new();
@@ -178,7 +178,7 @@ impl CoAPClient {
                     handler(receive_packet.message);
 
                     if let Some(response) = receive_packet.response {
-                        let mut packet = Packet::new();
+                        let mut packet = Packet::default();
                         packet.header.set_type(response.message.header.get_type());
                         packet.header.set_message_id(response.message.header.get_message_id());
                         packet.set_token(response.message.get_token().clone());
@@ -216,7 +216,7 @@ impl CoAPClient {
         self.observe_sender = Some(observe_sender);
         self.observe_thread = Some(observe_thread);
 
-        return Ok(());
+        Ok(())
     }
 
     /// Stop observing
@@ -260,9 +260,9 @@ impl CoAPClient {
                 if receive_packet.get_message_id() == message_id
                     && *receive_packet.get_token() == token
                 {
-                    return Ok(receive_packet);
+                    Ok(receive_packet)
                 } else {
-                    return Err(Error::new(ErrorKind::Other, "receive invalid data"));
+                    Err(Error::new(ErrorKind::Other, "receive invalid data"))
                 }
             }
             Err(e) => Err(e),
@@ -335,12 +335,12 @@ impl CoAPClient {
 
         let path = url_params.path().to_string();
 
-        return Ok((host.to_string(), port, path));
+        Ok((host.to_string(), port, path))
     }
 
     fn gen_message_id(message_id: &mut u16) -> u16 {
-        (*message_id) += 1;
-        return *message_id;
+        *message_id += 1;
+        *message_id
     }
 }
 
